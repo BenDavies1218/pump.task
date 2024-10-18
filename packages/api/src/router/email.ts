@@ -28,7 +28,7 @@ export const emailRouter = {
         );
 
         const msg = {
-          to: "bendavies600@gmail.com",
+          to: user.email,
           from: "coderacademylabrys@gmail.com",
           subject: "Pump.Task 2FA Authentication",
           html: `<h2>Pump.Task</h2><br><br><strong>Your code is ${code}</strong>`,
