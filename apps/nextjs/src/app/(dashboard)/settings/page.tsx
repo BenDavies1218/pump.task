@@ -8,21 +8,23 @@ import EmailNotifications from "~/app/_components/_userSettingsPage/EmailNotific
 import Security from "~/app/_components/_userSettingsPage/Security";
 import { api } from "~/trpc/server";
 
-export default async function Page() {
-  const walletId = cookies().get("wallet")?.value;
+export default function Page() {
+  // Get wallet ID from cookies
+  const walletId: string = cookies().get("wallet")?.value ?? "";
 
+  // Log error if wallet ID is not found
   if (!walletId) {
     console.error("Wallet ID is undefined or not found in cookies.");
-    return <div>Error: Wallet ID not found.</div>;
   }
 
-  const response = await api.user.byWallet({ walletId });
+  // Fetch user data with wallet ID
+  const response = api.user.byWallet({ walletId });
 
   // Destructure user data from response
-  const userData: UserClass | null = response as UserClass;
+  const userData: UserClass | null = response as unknown as UserClass;
 
   return (
-    <section className="my-2 flex flex-col items-center justify-center gap-4 pb-48">
+    <section className="flex flex-col items-center justify-center gap-4 py-48">
       <AccountSettings
         language={userData.userSettings?.language}
         theme={userData.userSettings?.isThemeDark}

@@ -1,17 +1,11 @@
 "use client";
 
-// Thirdweb Wallet Type
-import type { Wallet } from "thirdweb/wallets";
 // Next.js Router Hook
 import { useRouter } from "next/navigation";
 // Thirdweb React Components
-import {
-  ConnectButton,
-  darkTheme,
-  useActiveWallet,
-  useDisconnect,
-} from "thirdweb/react";
+import { ConnectButton, darkTheme } from "thirdweb/react";
 
+import { api } from "~/trpc/react";
 // Functions for logging in and out, Auth
 import {
   generatePayload,
@@ -23,15 +17,17 @@ import {
 import { chain, client } from "../thirdwebClient";
 
 export function Login() {
-  // Thirdweb Hooks
-  const router = useRouter();
-  const disconnect = useDisconnect();
-  const activeWallet = useActiveWallet();
+  const utils = api.useUtils();
 
-  // Function to disconnect the wallet if user does not have a JWT
-  const disconnectWallet = () => {
-    disconnect.disconnect(activeWallet as Wallet);
+  const handlePrefetchUser = (walletId: string) => {
+    if (!walletId) {
+      console.error("Wallet ID is undefined or not found in cookies.");
+      return;
+    }
+    void utils.user.byWallet.prefetch({ walletId });
   };
+
+  const router = useRouter();
 
   return (
     <>
@@ -45,26 +41,22 @@ export function Login() {
           },
         })}
         auth={{
-          isLoggedIn: async () => {
-            // Check if the user is logged in & has a valid JWT
-            const response = await isLoggedIn();
-
-            // If the user has a valid JWT, redirect to the auth page
-            if (response == true) {
+          isLoggedIn: async (address) => {
+            const result = await isLoggedIn();
+            if (result) {
+              handlePrefetchUser(address);
               router.push("/auth");
-              // If the user does not have a valid JWT, disconnect the wallet
-            } else {
-              disconnectWallet();
             }
-            return true;
+            return false;
           },
           doLogin: async (params) => {
+            console.log("logging in!");
             await login(params);
           },
           getLoginPayload: async ({ address }) => generatePayload({ address }),
           doLogout: async () => {
+            console.log("logging out!");
             await logout();
-            router.push("/");
           },
         }}
       />

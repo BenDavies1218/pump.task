@@ -1,11 +1,12 @@
 import type { TRPCRouterRecord } from "@trpc/server";
+import mongoose from "mongoose";
 import { z } from "zod";
 
 import type { BadgeClass } from "@acme/db";
 import { LoginHistory, User } from "@acme/db";
 
 import { Skill } from "../../../db/src/schema/Badges";
-import { protectedProcedure } from "../trpc";
+import { protectedProcedure, publicProcedure } from "../trpc";
 
 export const userRouter = {
   login: protectedProcedure
@@ -95,7 +96,7 @@ export const userRouter = {
           name: input.name,
           email: input.email,
           image: input.image,
-          bio: input.image,
+          bio: input.bio,
           userSettings: {},
           loginHistories: [newLogin._id],
         });
@@ -245,7 +246,7 @@ export const userRouter = {
         throw new Error("Failed to delete user");
       }
     }),
-  overview: protectedProcedure
+  overview: publicProcedure
     .input(z.object({ walletId: z.string() }))
     .query(async ({ input }) => {
       const user = await User.findOne({ walletId: input.walletId })
@@ -305,7 +306,7 @@ export const userRouter = {
                 new Date(serializedUser.badges[0].receivedDate).getTime()) /
                 (1000 * 3600 * 24),
             )
-          : 0;
+          : "N/A"; // Default if no badges found
 
       const badgeCounts: { [key in Skill]: number } = {
         [Skill.Backend]: 0,
@@ -313,11 +314,13 @@ export const userRouter = {
         [Skill.Design]: 0,
         [Skill.SmartContracts]: 0,
         [Skill.Integration]: 0,
+        [Skill.JSNinja]: 0,
+        [Skill.Misc]: 0,
       };
 
       serializedUser.badges?.forEach((badge) => {
         if (isBadgeClass(badge)) {
-          badgeCounts[badge.skill]++;
+          badgeCounts[badge.skill as Skill]++;
         }
       });
 
@@ -336,5 +339,67 @@ export const userRouter = {
         daysSinceLastBadge,
         topSkill,
       };
+    }),
+  updateActiveProjects: protectedProcedure
+    .input(z.object({ walletId: z.string(), projectId: z.string() }))
+    .mutation(async ({ input }) => {
+      try {
+        console.log("Updating active projects");
+
+        // Fetch the user by walletId
+        const user = await User.findOne({ walletId: String(input.walletId) })
+          .lean()
+          .exec();
+
+        if (!user) {
+          throw new Error("User not found");
+        }
+
+        // Get the activeProjects array or initialize it if empty
+        const activeProjects = user.activeProjects ?? [];
+
+        if (activeProjects.length > 0) {
+          // Remove the project if it already exists in active projects
+          const projectIndex = activeProjects.indexOf(
+            new mongoose.Types.ObjectId(input.projectId),
+          );
+          if (projectIndex !== -1) {
+            activeProjects.splice(projectIndex, 1);
+          }
+        }
+
+        // Add the project to the end (making it the most recent)
+        activeProjects.push(new mongoose.Types.ObjectId(input.projectId));
+
+        // Ensure the array contains a maximum of 3 projects
+        if (activeProjects.length > 3) {
+          activeProjects.shift(); // Remove the oldest project (first item)
+        }
+
+        // Build the updatedData object
+        const updatedData = {
+          activeProjects: activeProjects,
+        };
+
+        // Update the user using findByIdAndUpdate
+        const updatedUser = await User.findByIdAndUpdate(
+          user._id,
+          { $set: updatedData },
+          { new: true },
+        );
+
+        if (!updatedUser) {
+          throw new Error("Failed to update active projects");
+        }
+
+        // Return the updated activeProjects
+        return {
+          message: "Active projects updated successfully",
+          activeProjects: updatedUser.activeProjects,
+        };
+      } catch (error) {
+        console.error("Error updating activeProjects:", error);
+        throw new Error("Failed to update active projects");
+      }
     }),
 } satisfies TRPCRouterRecord;

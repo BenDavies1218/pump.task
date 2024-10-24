@@ -42,6 +42,29 @@ export const emailRouter = {
       }
     }),
 
+  sendInvite: publicProcedure
+    .input(z.object({ email: z.string() }))
+    .mutation(async ({ input }) => {
+      try {
+        const msg = {
+          to: input.email,
+          from: "coderacademylabrys@gmail.com",
+          subject: "Pump.Task Invite",
+          html: "http://localhost:3000/",
+        };
+
+        await sgMail.send(msg);
+        return {
+          success: true,
+          message: "Email sent successfully",
+          email: input.email,
+        };
+      } catch (error) {
+        console.error("Error sending email:", error);
+        return { success: false, message: "Failed to send email" };
+      }
+    }),
+
   verifyCode: protectedProcedure
     .input(z.object({ walletId: z.string(), code: z.string() }))
     .query(async ({ input }) => {
@@ -57,17 +80,18 @@ export const emailRouter = {
           return { success: false, message: "Invalid code. Please try again." };
         }
 
-        const UpdateUser = await User.findOneAndUpdate({
-          walletId: input.walletId,
-          DataToUpdate: {
-            emailVerified: true,
-            userSettings: {
-              twoFactorAuth: true,
+        const updateUser = await User.findOneAndUpdate(
+          { walletId: input.walletId },
+          {
+            $set: {
+              emailVerified: true,
+              "userSettings.twoFactorAuth": true,
             },
           },
-        });
+          { new: true },
+        );
 
-        if (!UpdateUser) {
+        if (!updateUser) {
           throw new Error("Failed to update user details");
         }
 
